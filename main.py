@@ -1,4 +1,5 @@
 import pygeoip
+import datetime
 
 class Accesses:
     def __init__(self):
@@ -6,10 +7,12 @@ class Accesses:
 
 class Access:
     def __init__(self):
-        self.ip = ''
-        self.date = ''
-        self.time = ''
-        self.timezone = ''
+        pass
+
+# Convert a date and time in the format "10/Sep/2011:11:20:54" to a datetime object
+def get_datetime_object(datetime_string):
+    return datetime.datetime.strptime(datetime_string, '%d/%b/%Y:%H:%M:%S')
+
 
 def parse_file(filename):
 
@@ -30,13 +33,9 @@ def parse_file(filename):
         access_el.ip = ip_to_set
 
         # Parse out date, time, and timezone information
-        date_time_to_set = line.split()[3][1:]
-        date_to_set, time_to_set = date_time_to_set.split(':', 1)
-        access_el.date = date_to_set
-        access_el.time = time_to_set
-
-        timezone_to_set = line.split()[4][:-1]
-        access_el.timezone = timezone_to_set
+        datetime_string = line.split()[3][1:]
+        datetime_object = get_datetime_object(datetime_string)
+        access_el.datetime_object = datetime_object
 
         accesses.access_list.append(access_el)
 
@@ -58,11 +57,12 @@ def parse_accesses(accesses):
             # Print data about access
             outfile.write("IP: " + access_el.ip)
             outfile.write("\nCity: " + gir['city'])
-            outfile.write("\nDate: " + access_el.date)
-            outfile.write("\nTime: " + access_el.time)
-            outfile.write("\nTimezone: " + access_el.timezone)
-            outfile.write("\n\n")
-
+            outfile.write("\nDate: \n")
+            string = ''
+            for it in access_el.datetime_object.timetuple():
+                string += str(it) + ' '
+            string += '\n\n'
+            outfile.write(string)
 
 def main():
     print "This product includes GeoLite data created by MaxMind, available from http://www.maxmind.com/."
