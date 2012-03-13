@@ -45,30 +45,38 @@ def parse_accesses(accesses):
     # Make GeoIP object for accessing GeoIP database
     gi = pygeoip.GeoIP('./GeoLiteCity.dat', pygeoip.STANDARD)
 
-    outfile = open('geoip_output.txt', 'w')
+    # Go through accesses and add GeoIP information about each
+    for i in range(len(accesses.access_list)):
 
-    for access_el in accesses.access_list:
+        gir = gi.record_by_addr(accesses.access_list[i])
 
-        gir = gi.record_by_addr(access_el.ip)
+        # Add geographical data for access to access object
+        accesses.access_list[i].city = gir['city']
+        accesses.access_list[i].region = gir['region']
+        accesses.access_list[i].country = gir['country_name']
+        accesses.access_list[i].lat = gir['latitude']
+        accesses.access_list[i].long = gir['longitude']
+    
+    return accesses
 
-        if gir['city'] == '':
-            outfile.write("Not found: " + repr(gir) + "\n\n")
-        else:
-            # Print data about access
-            outfile.write("IP: " + access_el.ip)
-            outfile.write("\nCity: " + gir['city'])
-            outfile.write("\nDate: \n")
-            string = ''
-            for it in access_el.datetime_object.timetuple():
-                string += str(it) + ' '
-            string += '\n\n'
-            outfile.write(string)
+# Displays a splash screen
+def splash_screen:
+    print "This program is copyright 2012 by Nat Guy."
+    print "This product includes GeoLite data created by MaxMind, available from http://www.maxmind.com/."
+
+# Opens the log file, 
+def load_and_parse(filename):
+    filename = 'seahop_oct_2011_(test_log).log'
+    print "Loading and parsing log data..."
+    accesses = parse_file(filename)
+    accesses = parse_accesses(accesses)
+    print "Log data parsed."
+    return accesses
 
 def main():
-    print "This product includes GeoLite data created by MaxMind, available from http://www.maxmind.com/."
-    filename = 'seahop_oct_2011_(test_log).log'
-    accesses = parse_file(filename)
-    parse_accesses(accesses)
+    splash_screen()
+    accesses = load_and_parse_log(filename)
+    
 
 
 if __name__ == '__main__':
