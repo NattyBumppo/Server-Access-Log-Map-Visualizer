@@ -1,5 +1,7 @@
 import pygeoip
 import datetime
+import pygame
+from pygame.locals import *
 
 class Accesses:
     def __init__(self):
@@ -60,11 +62,11 @@ def parse_accesses(accesses):
     return accesses
 
 # Displays a splash screen
-def splash_screen:
+def splash_screen():
     print "This program is copyright 2012 by Nat Guy."
     print "This product includes GeoLite data created by MaxMind, available from http://www.maxmind.com/."
 
-# Opens the log file, 
+# Opens the log file
 def load_and_parse(filename):
     filename = 'seahop_oct_2011_(test_log).log'
     print "Loading and parsing log data..."
@@ -73,7 +75,56 @@ def load_and_parse(filename):
     print "Log data parsed."
     return accesses
 
+# Perform pygame graphics initialization
+def pygame_init(screen_size):
+    pygame.init()
+    screen = pygame.display.set_mode(screen_size)
+    pygame.display.set_caption('Server Log World Visualizer')
+    return screen
+
+# Load images from file for map
+def load_images():
+    # Load images of Earth during the day and night
+    day_surface = pygame.image.load('earth_day_1200x600.jpg')
+    night_surface = pygame.image.load('earth_night_1200x600.jpg')
+
+    # Convert to pixel format for screen surface
+    day_surface = day_surface.convert()
+    night_surface = night_surface.convert()
+
+    return day_surface, night_surface
+
+
 def main():
+    screen_size = [1200, 600]
+    screen = pygame_init(screen_size)
+    day_surface, night_surface = load_images()
+
+    # Test -- fade between images by adjusting alphas
+    day_alpha = 255
+    night_alpha = 0
+    darkening = True
+    while 1:
+        for event in pygame.event.get():
+            if event.type == QUIT:
+                return
+        if darkening:
+            day_alpha -= 1
+            night_alpha += 1
+            if (day_alpha == 0):
+                darkening = False
+        else:
+            day_alpha += 1
+            night_alpha -= 1
+            if (day_alpha == 255):
+                darkening = True
+
+        day_surface.set_alpha(day_alpha)
+        night_surface.set_alpha(night_alpha)
+        screen.blit(day_surface, (0, 0))
+        screen.blit(night_surface, (0, 0))
+        pygame.display.flip()
+
     splash_screen()
     accesses = load_and_parse_log(filename)
     
