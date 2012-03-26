@@ -1,6 +1,9 @@
 import pygeoip
-import datetime
+from datetime import datetime
+from dateutil import tz
 import pygame
+import math
+import sys
 from pygame.locals import *
 
 class Accesses:
@@ -13,8 +16,20 @@ class Access:
 
 # Convert a date and time in the format "10/Sep/2011:11:20:54" to a datetime object
 def get_datetime_object(datetime_string):
-    return datetime.datetime.strptime(datetime_string, '%d/%b/%Y:%H:%M:%S')
+    return datetime.strptime(datetime_string, '%d/%b/%Y:%H:%M:%S')
 
+
+# Get the latitude (y) of the terminator given the longitude (x) and declination
+def getTerminatorLat(long, decl):
+    return math.arctan(-math.cos(long) / math.tan(decl))
+
+# Get the declination of the Earth towards the Sun given a date (as a datetime object)
+def getDecl(date):
+    return
+# Get the hour angle (tau) since the Sun last made a transit of the
+# Earth's meridian, given a date (as a datetime object)
+def getTau(date):
+    return
 
 def parse_file(filename):
 
@@ -35,29 +50,33 @@ def parse_file(filename):
         access_el.ip = ip_to_set
 
         # Parse out date, time, and timezone information
-        datetime_string = line.split()[3][1:]
-        datetime_object = get_datetime_object(datetime_string)
-        access_el.datetime_object = datetime_object
+        local_datetime = line.split()[3][1:]
+        local_timezone = line.split()[4][:-1]
+        datetime_object = get_datetime_object(local_datetime)
+        # Add timezone to datetime
+        timezone_seconds_offset = (int(local_timezone) / 100) * 3600
+        datetime_object = datetime_object.replace(tzinfo = tz.tzoffset(None, timezone_seconds_offset))
+        # Store datetime as UTC
+        access_el.datetime_object = datetime_object.astimezone(tz.tzutc())
 
         accesses.access_list.append(access_el)
 
     return accesses
 
-def parse_accesses(accesses):
+def add_geo_info(accesses):
     # Make GeoIP object for accessing GeoIP database
     gi = pygeoip.GeoIP('./GeoLiteCity.dat', pygeoip.STANDARD)
 
     # Go through accesses and add GeoIP information about each
     for i in range(len(accesses.access_list)):
-
-        gir = gi.record_by_addr(accesses.access_list[i])
-
+        gir = gi.record_by_addr(accesses.access_list[i].ip)
+        
         # Add geographical data for access to access object
-        accesses.access_list[i].city = gir['city']
-        accesses.access_list[i].region = gir['region']
-        accesses.access_list[i].country = gir['country_name']
-        accesses.access_list[i].lat = gir['latitude']
-        accesses.access_list[i].long = gir['longitude']
+        accesses.access_list[i].city = gir.get('city', '')
+        accesses.access_list[i].region = gir.get('region', '')
+        accesses.access_list[i].country = gir.get('country_name', '')
+        accesses.access_list[i].lat = gir.get('latitude', '')
+        accesses.access_list[i].long = gir.get('longitude', '')
     
     return accesses
 
@@ -67,11 +86,10 @@ def splash_screen():
     print "This product includes GeoLite data created by MaxMind, available from http://www.maxmind.com/."
 
 # Opens the log file
-def load_and_parse(filename):
-    filename = 'seahop_oct_2011_(test_log).log'
+def load_and_parse_log(filename):
     print "Loading and parsing log data..."
     accesses = parse_file(filename)
-    accesses = parse_accesses(accesses)
+    accesses = add_geo_info(accesses)
     print "Log data parsed."
     return accesses
 
@@ -94,9 +112,31 @@ def load_images():
 
     return day_surface, night_surface
 
+# Debug output for access data
+def debug_output(accesses, filename):
+    outfile = open(filename, 'w')
+    for access_el in accesses.access_list:
+        outfile.write("City: " + access_el.city + '\n')
+        outfile.write("Region: " + access_el.region + '\n')
+        outfile.write("Country: " + access_el.country + '\n')
+        outfile.write("Lat: " + str(access_el.lat) + '\n')
+        outfile.write("Long: " + str(access_el.long) + '\n')
+        outfile.write("Timetuple: " + str(access_el.datetime_object.timetuple()) + '\n========\n')
+
+    outfile.close()
 
 def main():
+
+    filename = 'seahop_oct_2011_(test_log).log'
+    accesses = load_and_parse_log(filename)
+    debug_output(accesses, 'debug_log.txt')
+    sys.exit()
+
     screen_size = [1200, 600]
+    # Box which is moved across the map for daytime display
+    day_box_width = 600
+    day_box_height = screen_size[1]
+
     screen = pygame_init(screen_size)
     day_surface, night_surface = load_images()
 
@@ -104,6 +144,43 @@ def main():
     day_alpha = 255
     night_alpha = 0
     darkening = True
+
+    exit_request = False
+    day_box_pos = 500
+    while not exit_request:
+        for event in pygame.event.get():
+            if event.type == QUIT:
+                exit_request = True
+        
+        # Move day_box
+        day_box_pos += 1
+        if day_box_pos >= screen.get_size()[0]:
+            day_box_pos = 0
+        
+
+
+        # Blit day to portion of surface covered by day_box
+        if (day_box_pos + day_box_width) >= screen.get_size()[0]:
+            day_box_width_to_draw = screen.get_size()[0] - (day_box_pos + day_box_width)
+        else:
+            day_box_width_to_draw = day_box_width
+
+
+        screen.blit(day_surface, (day_box_pos, 0), pygame.rect.Rect(day_box_pos, 0, day_box_width, day_box_height))
+
+        # Blit night portion of surface not covered by day_box
+        night_box_width0 = day_box_pos
+        if (day_box_pos + day_box_width) <= screen.get_size()[0]:
+            night_box_width1 = screen.get_size()[0] - (day_box_pos + day_box_width)
+        else:
+            night_box_width1 = 0
+        
+        screen.blit(night_surface, (0, 0), pygame.rect.Rect(0, 0, night_box_width0, day_box_height))
+        screen.blit(night_surface, ((day_box_pos + day_box_width_to_draw), 0), pygame.rect.Rect((day_box_pos + day_box_width_to_draw), 0, night_box_width1, day_box_height))
+
+        pygame.display.flip()
+
+
     while 1:
         for event in pygame.event.get():
             if event.type == QUIT:
@@ -126,7 +203,6 @@ def main():
         pygame.display.flip()
 
     splash_screen()
-    accesses = load_and_parse_log(filename)
     
 
 
